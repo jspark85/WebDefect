@@ -3,25 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Defect Formation Energy Plotter (Stable Envelope)</title>
+    <title>Defect Transition Level Diagram</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f9f9f9; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        .input-group { margin-bottom: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 5px; }
-        textarea { width: 100%; height: 160px; font-family: monospace; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background-color: #fafafa; }
-        input[type="number"] { width: 150px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background-color: #007BFF; color: white; border: none; border-radius: 5px; transition: 0.3s; }
-        button:hover { background-color: #0056b3; }
-        #plot { width: 100%; height: 650px; margin-top: 20px; }
-        .help-text { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .input-group { margin-bottom: 20px; }
+        label { font-weight: bold; display: block; margin-bottom: 8px; color: #333; }
+        textarea {
+            width: 100%; height: 160px; font-family: monospace;
+            padding: 12px; box-sizing: border-box; border: 1px solid #ccc;
+            border-radius: 6px; background-color: #fafafa;
+        }
+        input[type="number"] {
+            width: 150px; padding: 8px; border: 1px solid #ccc; border-radius: 6px;
+        }
+        button {
+            padding: 12px 24px; font-size: 16px; cursor: pointer; font-weight: bold;
+            background-color: #28a745; color: white; border: none;
+            border-radius: 6px; transition: background-color 0.3s;
+        }
+        button:hover { background-color: #218838; }
+        #plot { width: 100%; height: 600px; margin-top: 30px; }
+        .help-text { font-size: 0.9em; color: #555; margin-bottom: 8px; line-height: 1.5; }
+        .highlight { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>Formation Energy vs Fermi Energy</h2>
+        <h2>Defect Transition Levels</h2>
         
         <div class="input-group">
             <label for="bandgap">Band Gap (eV):</label>
@@ -29,33 +51,25 @@
         </div>
 
         <div class="input-group">
-            <label for="dataInput">데이터 입력:</label>
+            <label for="dataInput">데이터 입력 (이전과 동일한 포맷):</label>
             <div class="help-text">
-                각 줄마다 <code>0 eV 에너지, Charge 상태, 라벨 이름</code>을 적어주세요.<br>
-                ※ 라벨의 <b>괄호 <code>()</code> 앞 텍스트</b>를 기준으로 같은 결함 그룹으로 묶어 가장 안정한 굵은 선을 그립니다.
+                각 줄마다 <span class="highlight">0 eV 에너지, Charge 상태, 라벨 이름</span>을 적어주세요.<br>
+                ※ 자바스크립트가 라벨의 <b>괄호 <code>()</code> 앞 텍스트</b>를 인식해 같은 결함(Defect)끼리 자동으로 그룹화합니다. (예: <code>Defect A</code>)
             </div>
             <textarea id="dataInput">
 1.5, 1, Defect A (q=+1)
 2.5, 0, Defect A (q=0)
 4.5, -1, Defect A (q=-1)
 0.8, 2, Defect B (q=+2)
-3.2, -2, Defect B (q=-2)
-1.2, 1, Defect C (q=+1)
-2.0, -1, Defect C (q=-1)</textarea>
+3.2, -2, Defect B (q=-2)</textarea>
         </div>
 
-        <button onclick="drawPlot()">그래프 그리기 / 업데이트</button>
+        <button onclick="drawPlot()">Transition Level 계산 및 그리기</button>
 
         <div id="plot"></div>
     </div>
 
     <script>
-        // 색상 팔레트 (결함 그룹별로 다른 색상 부여)
-        const colorPalette = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
-            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-        ];
-
         function drawPlot() {
             const bandgap = parseFloat(document.getElementById('bandgap').value);
             const rawText = document.getElementById('dataInput').value.trim();
@@ -63,7 +77,7 @@
             
             const groups = {};
 
-            // 1. 데이터 파싱 및 결함 이름(baseName)별로 그룹화
+            // 1. 데이터 파싱 및 결함 이름별로 그룹화
             lines.forEach(line => {
                 if(!line.trim()) return;
                 const parts = line.split(',');
@@ -72,90 +86,139 @@
                     const q = parseFloat(parts[1].trim());
                     const rawLabel = parts.slice(2).join(',').trim();
                     
-                    // 괄호 앞부분 추출 (예: "Defect A (q=+1)" -> "Defect A")
+                    // 괄호 앞부분을 추출하여 같은 결함끼리 묶음 (예: "Defect A (q=+1)" -> "Defect A")
                     let baseName = rawLabel.split('(')[0].trim();
                     if(!baseName) baseName = rawLabel;
 
                     if(!groups[baseName]) groups[baseName] = [];
-                    groups[baseName].push({ e0: e0, q: q, label: rawLabel });
+                    groups[baseName].push({e0: e0, q: q, label: rawLabel});
                 }
             });
 
             const traces = [];
-            const xValues = [0, bandgap]; 
-            
-            // Lower envelope를 부드럽게 그리기 위한 세밀한 x축 배열 (500등분)
-            const numPoints = 500;
-            const xEnv = [];
-            for(let i = 0; i <= numPoints; i++) {
-                xEnv.push((i / numPoints) * bandgap);
-            }
+            let xTickVals = [];
+            let xTickText = [];
+            let currentXIdx = 1;
 
-            let colorIdx = 0;
+            // 2. 각 결함 그룹별로 Lower Envelope (최저 에너지 상태) 교차점 계산
+            for (let [defectName, defectLines] of Object.entries(groups)) {
+                xTickVals.push(currentXIdx);
+                xTickText.push(defectName);
+                
+                // q값 기준으로 중복 제거 (가장 낮은 e0만 유지)
+                let qMap = new Map();
+                for(let l of defectLines) {
+                    if(!qMap.has(l.q) || qMap.get(l.q).e0 > l.e0) {
+                        qMap.set(l.q, l);
+                    }
+                }
+                let uniqueLines = Array.from(qMap.values());
 
-            // 2. 그룹별로 점선(모든 상태)과 굵은 실선(가장 안정한 상태) 생성
-            for (let [defectName, states] of Object.entries(groups)) {
-                let color = colorPalette[colorIdx % colorPalette.length];
-                colorIdx++;
-
-                // [A] 개별 전하 상태들을 얇은 점선(Dashed)으로 추가
-                states.forEach(state => {
-                    traces.push({
-                        x: xValues,
-                        y: [state.e0, state.e0 + (state.q * bandgap)],
-                        mode: 'lines',
-                        name: state.label,
-                        line: { dash: 'dash', width: 1.5, color: color },
-                        opacity: 0.6,
-                        legendgroup: defectName, // 같은 결함끼리 범례를 묶음
-                        showlegend: false, // 점선은 범례에서 숨김 (깔끔한 뷰를 위해)
-                        hovertemplate: `<b>${state.label}</b><br>E_F: %{x:.2f} eV<br>Energy: %{y:.2f} eV<extra></extra>`
-                    });
-                });
-
-                // [B] 가장 안정한 상태 (Lower Envelope) 계산
-                const yEnv = [];
-                for (let x of xEnv) {
-                    let minEnergy = Infinity;
-                    states.forEach(state => {
-                        let energy = state.e0 + (state.q * x);
-                        if (energy < minEnergy) minEnergy = energy;
-                    });
-                    yEnv.push(minEnergy);
+                // E_F = 0 에서 가장 에너지가 낮은 상태 찾기 (동점일 경우 q가 가장 작은 것 선택)
+                if (uniqueLines.length === 0) continue;
+                let currentLine = uniqueLines[0];
+                for(let l of uniqueLines) {
+                    if(l.e0 < currentLine.e0) {
+                        currentLine = l;
+                    } else if (l.e0 === currentLine.e0 && l.q < currentLine.q) {
+                        currentLine = l;
+                    }
                 }
 
-                // 가장 안정한 상태를 굵은 실선으로 추가
-                traces.push({
-                    x: xEnv,
-                    y: yEnv,
-                    mode: 'lines',
-                    name: `<b>${defectName}</b> (Stable)`,
-                    line: { width: 4, color: color },
-                    legendgroup: defectName,
-                    hovertemplate: `<b>${defectName} (Lowest Energy)</b><br>E_F: %{x:.2f} eV<br>Energy: %{y:.2f} eV<extra></extra>`
-                });
+                let transitions = [];
+                let currentEf = 0; // x축 (Fermi Energy) 역할을 하는 변수
+
+                // 교차점(Transition Level) 찾기 로직
+                while(currentEf < bandgap) {
+                    let nextEf = Infinity;
+                    let nextLine = null;
+                    
+                    for(let l of uniqueLines) {
+                        if(l.q >= currentLine.q) continue; // Lower envelope는 기울기(q)가 감소하는 방향으로만 진행됨
+                        
+                        // 두 직선의 교차점 (E_F 값)
+                        let ef_intersect = (l.e0 - currentLine.e0) / (currentLine.q - l.q);
+                        
+                        if(ef_intersect > currentEf + 1e-5 && ef_intersect < nextEf) {
+                            nextEf = ef_intersect;
+                            nextLine = l;
+                        }
+                    }
+                    
+                    if(nextLine && nextEf <= bandgap) {
+                        transitions.push({
+                            ef: nextEf,
+                            q1: currentLine.q,
+                            q2: nextLine.q
+                        });
+                        currentEf = nextEf;
+                        currentLine = nextLine;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 3. 계산된 Transition Level을 그래프의 작대기로 추가
+                for(let t of transitions) {
+                    // 수평 작대기 (Line)
+                    traces.push({
+                        x: [currentXIdx - 0.25, currentXIdx + 0.25],
+                        y: [t.ef, t.ef],
+                        mode: 'lines',
+                        line: {color: '#d9534f', width: 4},
+                        hovertemplate: `Transition Energy: %{y:.3f} eV<extra>${defectName} (${t.q1}/${t.q2})</extra>`,
+                        showlegend: false
+                    });
+                    
+                    // 텍스트 라벨 추가 (q1/q2)
+                    traces.push({
+                        x: [currentXIdx],
+                        y: [t.ef],
+                        mode: 'text',
+                        text: [`(${t.q1}/${t.q2})`],
+                        textposition: 'top center',
+                        textfont: {size: 13, color: '#333'},
+                        hoverinfo: 'skip',
+                        showlegend: false
+                    });
+                }
+                
+                currentXIdx++;
             }
 
-            // 3. 그래프 레이아웃 설정
+            // 4. 그래프 레이아웃 설정 (VBM, CBM 배경 포함)
             const layout = {
-                title: '<b>Defect Formation Energy</b>',
+                title: '<b>Thermodynamic Transition Levels</b>',
                 xaxis: { 
-                    title: '<b>Fermi Energy (eV)</b>', 
-                    range: [0, bandgap],
-                    zeroline: false
+                    tickvals: xTickVals,
+                    ticktext: xTickText,
+                    range: [0.3, currentXIdx - 0.3], // x축 여백
+                    showline: true, linewidth: 2, linecolor: '#333'
                 },
                 yaxis: { 
-                    title: '<b>Formation Energy (eV)</b>' 
+                    title: '<b>Fermi Energy (eV)</b>', 
+                    range: [-0.3, bandgap + 0.3], // 위아래 여백 추가
+                    zeroline: false, showline: true, linewidth: 2, linecolor: '#333'
                 },
-                hovermode: 'closest',
+                shapes: [
+                    // VBM 음영 영역 (y < 0)
+                    {
+                        type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: -10, y1: 0,
+                        fillcolor: '#e2e8f0', line: {width: 0}, layer: 'below'
+                    },
+                    // CBM 음영 영역 (y > bandgap)
+                    {
+                        type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: bandgap, y1: bandgap + 10,
+                        fillcolor: '#e2e8f0', line: {width: 0}, layer: 'below'
+                    }
+                ],
+                annotations: [
+                    // VBM, CBM 텍스트 라벨
+                    { xref: 'paper', yref: 'y', x: 0.02, y: -0.15, text: '<b>VBM</b>', showarrow: false, font: {size: 14, color: '#555'} },
+                    { xref: 'paper', yref: 'y', x: 0.02, y: bandgap + 0.15, text: '<b>CBM</b>', showarrow: false, font: {size: 14, color: '#555'} }
+                ],
                 template: 'plotly_white',
-                legend: {
-                    x: 1.02,
-                    y: 1,
-                    bgcolor: 'rgba(255,255,255,0.9)',
-                    bordercolor: '#ccc',
-                    borderwidth: 1
-                }
+                hovermode: 'closest'
             };
 
             Plotly.newPlot('plot', traces, layout);
