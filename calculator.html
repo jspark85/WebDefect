@@ -33,8 +33,8 @@
                 <h3>1. System Parameters</h3>
                 <div class="input-group">
                     <label>Pristine Supercell Energy (eV)</label>
-                    <input type="number" id="e_host" step="any" placeholder="비워두면 0으로 계산됩니다.">
-                    <span class="help-text">E(host) 값. 입력하지 않으면 E(host) = 0 으로 간주합니다.</span>
+                    <input type="number" id="e_host" step="any" placeholder="If left blank, it will be counted as 0.">
+                    <span class="help-text">E(host) value. If not entered, E(host) = 0.</span>
                 </div>
                 <div class="grid-2">
                     <div class="input-group">
@@ -50,11 +50,11 @@
 
             <div>
                 <h3>2. Chemical Potentials</h3>
-                <span class="help-text" style="margin-bottom: 10px;">결함 생성으로 인한 원자 수 변화량 (Δn = 결함 셀 원자 수 - Pristine 셀 원자 수)</span>
+                <span class="help-text" style="margin-bottom: 10px;">Change in the number of atoms due to defect creation (Δn = number of atoms in a defective cell - number of atoms in a pristine cell)</span>
                 <div class="chem-row chem-header">
-                    <div>원소 이름 (선택)</div>
+                    <div>Element name (optional)</div>
                     <div>Chemical Potential, μ (eV)</div>
-                    <div>Δn (원자 수 증감)</div>
+                    <div>Δn (Increase or decrease in the number of atoms)</div>
                 </div>
                 <div id="chem-inputs">
                     <div class="chem-row"><input type="text" placeholder="예: O"><input type="number" step="any" class="mu" value="0"><input type="number" step="any" class="dn" value="0"></div>
@@ -67,7 +67,7 @@
 
         <div>
             <h3>3. Defect Supercell Energies</h3>
-            <span class="help-text" style="margin-bottom: 10px;">각 줄마다 쉼표(,)로 구분하여 <b>전하량(q), 결함 셀 에너지 E(D), 보정 에너지 E_corr(선택)</b> 를 입력하세요.</span>
+            <span class="help-text" style="margin-bottom: 10px;">Enter the <b>charge (q), defective cell energy E (D), and correction energy E_corr (optional)</b> on each line, separated by commas (,).</span>
             <textarea id="defectData">
 0, 1.5, 0
 1, 1.8, 0.05
@@ -76,7 +76,7 @@
 -2, 6.5, 0.08</textarea>
         </div>
 
-        <button onclick="calculateAndPlot()">계산 및 그래프 그리기</button>
+        <button onclick="calculateAndPlot()">Run!</button>
 
         <div id="plot"></div>
     </div>
