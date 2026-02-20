@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defect Formation Energy Calculator</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { color: #34495e; margin-top: 30px; font-size: 1.1em; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .input-group { margin-bottom: 15px; }
+        label { font-weight: 600; display: block; margin-bottom: 5px; color: #444; font-size: 0.9em; }
+        input[type="number"], input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-family: monospace; }
+        textarea { width: 100%; height: 150px; font-family: monospace; padding: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+        .chem-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .chem-header { font-weight: bold; font-size: 0.85em; color: #666; text-align: center; }
+        button { padding: 15px 30px; font-size: 16px; font-weight: bold; cursor: pointer; background-color: #0056b3; color: white; border: none; border-radius: 6px; width: 100%; margin-top: 20px; transition: background 0.3s; }
+        button:hover { background-color: #004494; }
+        .help-text { font-size: 0.85em; color: #7f8c8d; margin-top: 4px; display: block; }
+        #plot { width: 100%; height: 600px; margin-top: 40px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Defect Formation Energy Calculator</h2>
+
+        <div class="grid-2">
+            <div>
+                <h3>1. System Parameters</h3>
+                <div class="input-group">
+                    <label>Pristine Supercell Energy (eV)</label>
+                    <input type="number" id="e_host" step="any" placeholder="비워두면 0으로 계산됩니다.">
+                    <span class="help-text">E(host) 값. 입력하지 않으면 E(host) = 0 으로 간주합니다.</span>
+                </div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>VBM (eV)</label>
+                        <input type="number" id="vbm" step="any" value="0.0">
+                    </div>
+                    <div class="input-group">
+                        <label>CBM (eV)</label>
+                        <input type="number" id="cbm" step="any" value="3.0">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3>2. Chemical Potentials</h3>
+                <span class="help-text" style="margin-bottom: 10px;">결함 생성으로 인한 원자 수 변화량 (Δn = 결함 셀 원자 수 - Pristine 셀 원자 수)</span>
+                <div class="chem-row chem-header">
+                    <div>원소 이름 (선택)</div>
+                    <div>Chemical Potential, μ (eV)</div>
+                    <div>Δn (원자 수 증감)</div>
+                </div>
+                <div id="chem-inputs">
+                    <div class="chem-row"><input type="text" placeholder="예: O"><input type="number" step="any" class="mu" value="0"><input type="number" step="any" class="dn" value="0"></div>
+                    <div class="chem-row"><input type="text" placeholder="예: Zn"><input type="number" step="any" class="mu" value="0"><input type="number" step="any" class="dn" value="0"></div>
+                    <div class="chem-row"><input type="text" placeholder=""><input type="number" step="any" class="mu" value="0"><input type="number" step="any" class="dn" value="0"></div>
+                    <div class="chem-row"><input type="text" placeholder=""><input type="number" step="any" class="mu" value="0"><input type="number" step="any" class="dn" value="0"></div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h3>3. Defect Supercell Energies</h3>
+            <span class="help-text" style="margin-bottom: 10px;">각 줄마다 쉼표(,)로 구분하여 <b>전하량(q), 결함 셀 에너지 E(D), 보정 에너지 E_corr(선택)</b> 를 입력하세요.</span>
+            <textarea id="defectData">
+0, 1.5, 0
+1, 1.8, 0.05
+-1, 4.2, 0.02
+2, 1.1, 0.1
+-2, 6.5, 0.08</textarea>
+        </div>
+
+        <button onclick="calculateAndPlot()">계산 및 그래프 그리기</button>
+
+        <div id="plot"></div>
+    </div>
+
+    <script>
+        function calculateAndPlot() {
+            // 1. 기본 파라미터 가져오기
+            let e_host_input = document.getElementById('e_host').value;
+            const e_host = e_host_input === "" ? 0 : parseFloat(e_host_input);
+            const vbm = parseFloat(document.getElementById('vbm').value);
+            const cbm = parseFloat(document.getElementById('cbm').value);
+            const bandgap = cbm - vbm;
+
+            if (bandgap <= 0) {
+                alert("CBM은 VBM보다 커야 합니다.");
+                return;
+            }
+
+            // 2. Chemical Potential 항 계산: - sum(Δn_i * μ_i)
+            let chem_term = 0;
+            const mu_inputs = document.querySelectorAll('.mu');
+            const dn_inputs = document.querySelectorAll('.dn');
+            for(let i=0; i<4; i++) {
+                let mu = parseFloat(mu_inputs[i].value) || 0;
+                let dn = parseFloat(dn_inputs[i].value) || 0;
+                chem_term -= (dn * mu); // 식에 따라 빼줍니다.
+            }
+
+            // 3. 결함 데이터 파싱 및 E_f(E_F=0) 계산
+            const rawText = document.getElementById('defectData').value.trim();
+            const lines = rawText.split('\n');
+            const defectStates = [];
+
+            lines.forEach(line => {
+                if(!line.trim()) return;
+                const parts = line.split(',');
+                if(parts.length >= 2) {
+                    const q = parseFloat(parts[0].trim());
+                    const e_def = parseFloat(parts[1].trim());
+                    const e_corr = parts.length >= 3 ? parseFloat(parts[2].trim()) : 0;
+
+                    // 핵심 수식: E^f(q, E_F=0) = E(D^q) - E(host) - sum(dn*mu) + q*VBM + E_corr
+                    const e_f0 = e_def - e_host + chem_term + (q * vbm) + e_corr;
+                    
+                    defectStates.push({ q: q, e_f0: e_f0 });
+                }
+            });
+
+            if (defectStates.length === 0) {
+                alert("유효한 결함 데이터가 없습니다.");
+                return;
+            }
+
+            const traces = [];
+            const xValues = [0, bandgap]; // x축: Fermi Energy (0 ~ Bandgap)
+
+            // 각 전하 상태별 직선(Trace) 생성
+            defectStates.forEach(state => {
+                const yValues = [
+                    state.e_f0, // E_F = 0 일 때
+                    state.e_f0 + (state.q * bandgap) // E_F = CBM 일 때
+                ];
+
+                traces.push({
+                    x: xValues,
+                    y: yValues,
+                    mode: 'lines',
+                    name: `q = ${state.q > 0 ? '+'+state.q : state.q}`,
+                    line: { width: 2, dash: 'dot' },
+                    opacity: 0.6,
+                    hovertemplate: 'E_F: %{x:.2f} eV<br>E_form: %{y:.2f} eV<extra>q=' + state.q + '</extra>'
+                });
+            });
+
+            // 4. Lower Envelope (가장 안정한 상태, 굵은 선) 계산
+            const envelopeX = [];
+            const envelopeY = [];
+            const numPoints = 500; // 곡선을 부드럽게 그리기 위해 촘촘하게 포인트 생성
+            
+            for (let i = 0; i <= numPoints; i++) {
+                let ef = (i / numPoints) * bandgap;
+                let min_ef_val = Infinity;
+
+                defectStates.forEach(state => {
+                    let current_val = state.e_f0 + (state.q * ef);
+                    if (current_val < min_ef_val) {
+                        min_ef_val = current_val;
+                    }
+                });
+
+                envelopeX.push(ef);
+                envelopeY.push(min_ef_val);
+            }
+
+            // Lower Envelope Trace 추가
+            traces.push({
+                x: envelopeX,
+                y: envelopeY,
+                mode: 'lines',
+                name: '<b>Stable State</b>',
+                line: { color: 'red', width: 4 },
+                hovertemplate: '<b>Stable</b><br>E_F: %{x:.2f} eV<br>E_form: %{y:.2f} eV<extra></extra>'
+            });
+
+            // 5. 그래프 레이아웃 설정
+            const layout = {
+                title: '<b>Calculated Defect Formation Energy</b>',
+                xaxis: { 
+                    title: '<b>Fermi Energy (eV)</b><br>(Relative to VBM)', 
+                    range: [0, bandgap],
+                    zeroline: false 
+                },
+                yaxis: { 
+                    title: '<b>Formation Energy (eV)</b>',
+                    zeroline: true,
+                    zerolinecolor: '#ccc',
+                    zerolinewidth: 2
+                },
+                template: 'plotly_white',
+                hovermode: 'x unified',
+                legend: { x: 1.05, y: 1 }
+            };
+
+            Plotly.newPlot('plot', traces, layout);
+        }
+
+        // 초기 실행
+        window.onload = calculateAndPlot;
+    </script>
+</body>
+</html>

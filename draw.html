@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defect Formation Energy Plotter (Stable Envelope)</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f9f9f9; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .input-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        textarea { width: 100%; height: 160px; font-family: monospace; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background-color: #fafafa; }
+        input[type="number"] { width: 150px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background-color: #007BFF; color: white; border: none; border-radius: 5px; transition: 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #plot { width: 100%; height: 650px; margin-top: 20px; }
+        .help-text { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Formation Energy vs Fermi Energy</h2>
+        
+        <div class="input-group">
+            <label for="bandgap">Band Gap (eV):</label>
+            <input type="number" id="bandgap" value="3.0" step="0.1" min="0">
+        </div>
+
+        <div class="input-group">
+            <label for="dataInput">데이터 입력:</label>
+            <div class="help-text">
+                각 줄마다 <code>0 eV 에너지, Charge 상태, 라벨 이름</code>을 적어주세요.<br>
+                ※ 라벨의 <b>괄호 <code>()</code> 앞 텍스트</b>를 기준으로 같은 결함 그룹으로 묶어 가장 안정한 굵은 선을 그립니다.
+            </div>
+            <textarea id="dataInput">
+1.5, 1, Defect A (q=+1)
+2.5, 0, Defect A (q=0)
+4.5, -1, Defect A (q=-1)
+0.8, 2, Defect B (q=+2)
+3.2, -2, Defect B (q=-2)
+1.2, 1, Defect C (q=+1)
+2.0, -1, Defect C (q=-1)</textarea>
+        </div>
+
+        <button onclick="drawPlot()">그래프 그리기 / 업데이트</button>
+
+        <div id="plot"></div>
+    </div>
+
+    <script>
+        // 색상 팔레트 (결함 그룹별로 다른 색상 부여)
+        const colorPalette = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ];
+
+        function drawPlot() {
+            const bandgap = parseFloat(document.getElementById('bandgap').value);
+            const rawText = document.getElementById('dataInput').value.trim();
+            const lines = rawText.split('\n');
+            
+            const groups = {};
+
+            // 1. 데이터 파싱 및 결함 이름(baseName)별로 그룹화
+            lines.forEach(line => {
+                if(!line.trim()) return;
+                const parts = line.split(',');
+                if(parts.length >= 3) {
+                    const e0 = parseFloat(parts[0].trim());
+                    const q = parseFloat(parts[1].trim());
+                    const rawLabel = parts.slice(2).join(',').trim();
+                    
+                    // 괄호 앞부분 추출 (예: "Defect A (q=+1)" -> "Defect A")
+                    let baseName = rawLabel.split('(')[0].trim();
+                    if(!baseName) baseName = rawLabel;
+
+                    if(!groups[baseName]) groups[baseName] = [];
+                    groups[baseName].push({ e0: e0, q: q, label: rawLabel });
+                }
+            });
+
+            const traces = [];
+            const xValues = [0, bandgap]; 
+            
+            // Lower envelope를 부드럽게 그리기 위한 세밀한 x축 배열 (500등분)
+            const numPoints = 500;
+            const xEnv = [];
+            for(let i = 0; i <= numPoints; i++) {
+                xEnv.push((i / numPoints) * bandgap);
+            }
+
+            let colorIdx = 0;
+
+            // 2. 그룹별로 점선(모든 상태)과 굵은 실선(가장 안정한 상태) 생성
+            for (let [defectName, states] of Object.entries(groups)) {
+                let color = colorPalette[colorIdx % colorPalette.length];
+                colorIdx++;
+
+                // [A] 개별 전하 상태들을 얇은 점선(Dashed)으로 추가
+                states.forEach(state => {
+                    traces.push({
+                        x: xValues,
+                        y: [state.e0, state.e0 + (state.q * bandgap)],
+                        mode: 'lines',
+                        name: state.label,
+                        line: { dash: 'dash', width: 1.5, color: color },
+                        opacity: 0.6,
+                        legendgroup: defectName, // 같은 결함끼리 범례를 묶음
+                        showlegend: false, // 점선은 범례에서 숨김 (깔끔한 뷰를 위해)
+                        hovertemplate: `<b>${state.label}</b><br>E_F: %{x:.2f} eV<br>Energy: %{y:.2f} eV<extra></extra>`
+                    });
+                });
+
+                // [B] 가장 안정한 상태 (Lower Envelope) 계산
+                const yEnv = [];
+                for (let x of xEnv) {
+                    let minEnergy = Infinity;
+                    states.forEach(state => {
+                        let energy = state.e0 + (state.q * x);
+                        if (energy < minEnergy) minEnergy = energy;
+                    });
+                    yEnv.push(minEnergy);
+                }
+
+                // 가장 안정한 상태를 굵은 실선으로 추가
+                traces.push({
+                    x: xEnv,
+                    y: yEnv,
+                    mode: 'lines',
+                    name: `<b>${defectName}</b> (Stable)`,
+                    line: { width: 4, color: color },
+                    legendgroup: defectName,
+                    hovertemplate: `<b>${defectName} (Lowest Energy)</b><br>E_F: %{x:.2f} eV<br>Energy: %{y:.2f} eV<extra></extra>`
+                });
+            }
+
+            // 3. 그래프 레이아웃 설정
+            const layout = {
+                title: '<b>Defect Formation Energy</b>',
+                xaxis: { 
+                    title: '<b>Fermi Energy (eV)</b>', 
+                    range: [0, bandgap],
+                    zeroline: false
+                },
+                yaxis: { 
+                    title: '<b>Formation Energy (eV)</b>' 
+                },
+                hovermode: 'closest',
+                template: 'plotly_white',
+                legend: {
+                    x: 1.02,
+                    y: 1,
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1
+                }
+            };
+
+            Plotly.newPlot('plot', traces, layout);
+        }
+
+        window.onload = drawPlot;
+    </script>
+
+</body>
+</html>
