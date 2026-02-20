@@ -29,10 +29,10 @@
         </div>
 
         <div class="input-group">
-            <label for="dataInput">데이터 입력:</label>
+            <label for="dataInput">Input Data</label>
             <div class="help-text">
-                각 줄마다 <code>0 eV 에너지, Charge 상태, 라벨 이름</code>을 적어주세요.<br>
-                ※ 라벨의 <b>괄호 <code>()</code> 앞 텍스트</b>를 기준으로 같은 결함 그룹으로 묶어 가장 안정한 굵은 선을 그립니다.
+                For each line, enter the <code>energy at the VBM, charge state, and label name</code>.
+                ※ Group defects based on the <b>text before the parentheses</b> <code>()</code> of the label and draw the most stable line in bold.
             </div>
             <textarea id="dataInput">
 1.5, 1, Defect A (q=+1)
@@ -44,7 +44,7 @@
 2.0, -1, Defect C (q=-1)</textarea>
         </div>
 
-        <button onclick="drawPlot()">그래프 그리기 / 업데이트</button>
+        <button onclick="drawPlot()">Run!</button>
 
         <div id="plot"></div>
     </div>
