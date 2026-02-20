@@ -51,10 +51,10 @@
         </div>
 
         <div class="input-group">
-            <label for="dataInput">데이터 입력 (이전과 동일한 포맷):</label>
+            <label for="dataInput">Input Data:</label>
             <div class="help-text">
-                각 줄마다 <span class="highlight">0 eV 에너지, Charge 상태, 라벨 이름</span>을 적어주세요.<br>
-                ※ 자바스크립트가 라벨의 <b>괄호 <code>()</code> 앞 텍스트</b>를 인식해 같은 결함(Defect)끼리 자동으로 그룹화합니다. (예: <code>Defect A</code>)
+                For each line, write <span class="highlight"> energy at the VBM, charge state, and label</span>.<br>
+                ※ JavaScript recognizes the text before the label's parentheses <code>()</code> and automatically groups defects of the same type. (Example: <code>Defect A</code>)
             </div>
             <textarea id="dataInput">
 1.5, 1, Defect A (q=+1)
@@ -64,7 +64,7 @@
 3.2, -2, Defect B (q=-2)</textarea>
         </div>
 
-        <button onclick="drawPlot()">Transition Level 계산 및 그리기</button>
+        <button onclick="drawPlot()">Run!</button>
 
         <div id="plot"></div>
     </div>
